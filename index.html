@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Easy Step: STL to STEP, free and in your browser</title>
+<meta name="description" content="Turn an STL mesh into a STEP solid. Flat regions become single faces. Runs entirely in your browser; your file is never uploaded.">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#14171c;--mute:#5d6673;--line:#dde1e7;--acc:#2f6bff;--acc-ink:#fff;--ok:#18864b;--warn:#b25e00;--warnbg:#fff4e0}
+@media(prefers-color-scheme:dark){:root{--bg:#0d0e10;--card:#16181c;--ink:#eceff3;--mute:#9aa3b0;--line:#272b32;--acc:#5b8cff;--acc-ink:#0b0d12;--ok:#4cc38a;--warn:#f0a548;--warnbg:#2a2113}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+header,main,footer{max-width:1100px;margin:0 auto;padding:0 20px}
+header{padding-top:28px;padding-bottom:8px}
+h1{margin:0;font-size:28px;letter-spacing:-.5px}h1 span{color:var(--acc)}
+.sub{color:var(--mute);margin:4px 0 0}
+.app{display:grid;grid-template-columns:340px 1fr;gap:16px;margin-top:20px}
+@media(max-width:820px){.app{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:28px 14px;text-align:center;cursor:pointer;color:var(--mute);transition:.15s}
+.drop:hover,.drop.on{border-color:var(--acc);color:var(--ink)}.drop b{display:block;color:var(--ink);font-size:16px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+.stat{border:1px solid var(--line);border-radius:10px;padding:10px}.stat small{color:var(--mute);display:block;font-size:12px}.stat strong{font-size:18px}
+label.t{display:block;font-size:13px;color:var(--mute)}input[type=number]{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);margin-top:4px}
+button.go{width:100%;margin-top:14px;padding:12px;border:0;border-radius:10px;background:var(--acc);color:var(--acc-ink);font-size:15px;font-weight:600;cursor:pointer}
+button.go:disabled{opacity:.4;cursor:not-allowed}
+.note{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--warnbg);color:var(--warn);font-size:13px}.note:empty{display:none}
+.view{position:relative;min-height:420px;padding:0;overflow:hidden}#v{position:absolute;inset:0}
+.seg{position:absolute;top:10px;left:10px;display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card);z-index:1}
+.seg button{border:0;background:none;color:var(--ink);padding:6px 12px;cursor:pointer}.seg button.on{background:var(--acc);color:var(--acc-ink)}
+.hint{position:absolute;bottom:8px;left:12px;color:var(--mute);font-size:12px;z-index:1}
+section{margin-top:28px}h2{font-size:18px;margin:0 0 10px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:820px){.two{grid-template-columns:1fr}}
+ul{margin:0;padding-left:20px}li{margin:6px 0}.yes li::marker{color:var(--ok)}.no li::marker{color:var(--warn)}
+footer{color:var(--mute);font-size:13px;padding-top:24px;padding-bottom:40px}a{color:var(--acc)}
+</style></head><body>
+<header><h1>Easy <span>Step</span></h1><p class="sub">Turn an STL mesh into a STEP solid. Free, and it runs in your browser, so your file is never uploaded.</p></header>
+<main>
+<div class="app">
+ <div class="card">
+  <div class="drop" id="dz"><b>Drop an STL here</b>or click to browse (binary or text)</div>
+  <input type="file" id="f" accept=".stl" hidden>
+  <div class="stats" id="st" hidden>
+   <div class="stat"><small>Triangles in</small><strong id="s1">–</strong></div>
+   <div class="stat"><small>CAD faces out</small><strong id="s2">–</strong></div>
+   <div class="stat"><small>Watertight</small><strong id="s3">–</strong></div>
+   <div class="stat"><small>Volume (units³)</small><strong id="s4">–</strong></div>
+  </div>
+  <label class="t">Flatness tolerance (model units)<input id="t" type="number" value="0" min="0" step="0.001"></label>
+  <p class="sub" style="font-size:12px">0 only merges triangles that are exactly flat. Raise it a little (try 0.01) for scans or sloppy exports. Large values can break the solid.</p>
+  <div class="note" id="n"></div>
+  <button class="go" id="s" disabled>Download STEP</button>
+ </div>
+ <div class="card view"><div class="seg"><button class="on" id="m0">Shaded</button><button id="m1">CAD faces</button></div><div id="v"></div><div class="hint">Drag: orbit · Right-drag: pan · Scroll: zoom</div></div>
+</div>
+
+<section class="two">
+ <div class="card yes"><h2>What it does</h2><ul>
+  <li>Repairs the mesh: welds vertices, removes degenerate and duplicate triangles, fixes winding, fills small holes.</li>
+  <li>Merges flat, connected triangles into single planar faces, with holes kept as holes.</li>
+  <li>Exports a closed solid as STEP (AP214), which Fusion 360, FreeCAD and SolidWorks open as a body you can cut, combine and measure.</li>
+  <li>Use <b>CAD faces</b> in the viewer to see exactly which regions were merged.</li>
+ </ul></div>
+ <div class="card no"><h2>What it does not do</h2><ul>
+  <li><b>Curved surfaces stay faceted.</b> Cylinders, fillets, spheres and freeform shapes remain many small flat faces. Only planes are recognised.</li>
+  <li>It does not rebuild parametric features or a sketch history.</li>
+  <li>It cannot make a solid from a mesh that is badly open; the status above tells you if the repair fell short.</li>
+  <li>Hole filling is simple and can look wrong on large or concave holes.</li>
+ </ul></div>
+</section>
+
+<section class="card"><h2>Before you rely on it</h2><ul>
+ <li><b>Best for mechanical parts</b> with mostly flat faces: brackets, enclosures, blocks. Organic or sculpted models (armor, figures, scans) will export, but mostly as dense triangle faces.</li>
+ <li><b>Units:</b> STL files carry no units. The STEP is labelled millimetres and numbers are unchanged. If your model was in inches, scale it in your CAD tool.</li>
+ <li><b>Check the result</b> in your CAD tool before using it for manufacturing, printing or anything safety-related. Verify dimensions and volume.</li>
+ <li><b>Large files</b> are limited by your browser's memory. Hundreds of thousands of triangles can be slow.</li>
+ <li><b>Privacy:</b> conversion happens locally on your device. Nothing is uploaded or stored.</li>
+ <li>Provided as is, with no warranty. Free and open source (MIT).</li>
+</ul></section>
+</main>
+<footer>Easy Step is a community tool, not affiliated with any CAD vendor. Found a file it handles badly? Open an issue on the project's GitHub page.</footer>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+function parse(buf){
+  const dv=new DataView(buf),n=buf.byteLength>84?dv.getUint32(80,true):0;
+  if(buf.byteLength===84+50*n){ // binary
+    const r=new Float32Array(n*9);
+    for(let t=0;t<n;t++)for(let k=0;k<9;k++)r[t*9+k]=dv.getFloat32(84+t*50+12+k*4,true);
+    return r;
+  }
+  const m=[...new TextDecoder().decode(buf).matchAll(/vertex\s+(\S+)\s+(\S+)\s+(\S+)/g)];
+  return Float32Array.from(m.flatMap(x=>[+x[1],+x[2],+x[3]]));
+}
+
+// raw: flat xyz triangle soup -> {V,F,pos,stats}. Weld, drop junk, orient, fill holes, outward normals.
+function clean(raw){
+  const mn=[1e30,1e30,1e30],mx=[-1e30,-1e30,-1e30];
+  for(let i=0;i<raw.length;i++){const k=i%3;mn[k]=Math.min(mn[k],raw[i]);mx[k]=Math.max(mx[k],raw[i]);}
+  const diag=Math.hypot(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]),eps=diag*1e-6||1e-9;
+  const vm=new Map(),V=[],seen=new Set();let F=[];
+  const id=i=>{
+    const k=[0,1,2].map(j=>Math.round(raw[i*3+j]/eps)).join();let v=vm.get(k);
+    if(v==null){v=V.length/3;V.push(raw[i*3],raw[i*3+1],raw[i*3+2]);vm.set(k,v);}
+    return v;
+  };
+  const tin=raw.length/9;
+  for(let t=0;t<tin;t++){
+    const f=[id(t*3),id(t*3+1),id(t*3+2)];
+    if(new Set(f).size<3)continue;                       // degenerate
+    const k=[...f].sort((a,b)=>a-b).join();
+    if(seen.has(k))continue;seen.add(k);F.push(f);       // duplicate
+  }
+  const key=(u,v)=>u<v?u+'_'+v:v+'_'+u;
+  const edges=()=>{const m=new Map();
+    F.forEach((f,i)=>{for(let j=0;j<3;j++){const u=f[j],v=f[(j+1)%3],k=key(u,v);
+      if(!m.has(k))m.set(k,[]);m.get(k).push([i,u,v]);}});
+    return m;};
+
+  // consistent winding via flood fill over manifold edges
+  let E=edges();const flip=F.map(()=>false),vis=F.map(()=>false);
+  for(let s=0;s<F.length;s++){
+    if(vis[s])continue;vis[s]=true;const q=[s];
+    while(q.length){
+      const f=q.pop();
+      for(let j=0;j<3;j++){
+        const u=F[f][j],v=F[f][(j+1)%3],l=E.get(key(u,v));
+        if(l.length!==2)continue;                        // ponytail: non-manifold edges skipped
+        const g=l.find(x=>x[0]!==f);if(vis[g[0]])continue;vis[g[0]]=true;
+        if(((u<v)!==flip[f])===(g[1]<g[2]))flip[g[0]]=true;
+        q.push(g[0]);
+      }
+    }
+  }
+  const flipped=flip.filter(Boolean).length;
+  F=F.map((f,i)=>flip[i]?[f[0],f[2],f[1]]:f);
+
+  // fill boundary loops (fan). ponytail: fan is fine for flat/small holes, bad for big concave ones
+  E=edges();const nxt=new Map();
+  for(const l of E.values())if(l.length===1)nxt.set(l[0][2],l[0][1]);
+  const used=new Set();let holes=0;
+  for(const s of [...nxt.keys()]){
+    if(used.has(s))continue;const p=[];let c=s;
+    while(c!=null&&!used.has(c)){used.add(c);p.push(c);c=nxt.get(c);}
+    if(c===s&&p.length>=3&&p.length<=500){
+      for(let i=1;i<p.length-1;i++)F.push([p[0],p[i],p[i+1]]);holes++;
+    }
+  }
+
+  // outward normals via signed volume
+  const P=i=>[V[i*3],V[i*3+1],V[i*3+2]];
+  let vol=0;
+  for(const [a,b,c] of F){const A=P(a),B=P(b),C=P(c);
+    vol+=(A[0]*(B[1]*C[2]-B[2]*C[1])-A[1]*(B[0]*C[2]-B[2]*C[0])+A[2]*(B[0]*C[1]-B[1]*C[0]))/6;}
+  if(vol<0){F=F.map(f=>[f[0],f[2],f[1]]);vol=-vol;}
+
+  const watertight=[...edges().values()].every(l=>l.length===2);
+  const pos=new Float32Array(F.length*9);
+  F.forEach((f,i)=>f.forEach((v,j)=>pos.set(P(v),i*9+j*3)));
+  return{V,F,pos,diag,stats:{trisIn:tin,trisOut:F.length,verts:V.length/3,flipped,holesFilled:holes,watertight,volume:vol}};
+}
+
+// Merge coplanar triangles into planar faces: [{n, outer:[vertex ids], holes:[[ids]]}].
+// ponytail: planes only. Curved surfaces stay as many small faces (needs cylinder/sphere fitting).
+function regions({V,F,diag},userTol){
+  const tol=Math.max(userTol||0,diag*1e-5);
+  const P=i=>[V[i*3],V[i*3+1],V[i*3+2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],
+    cr=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],
+    dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],un=a=>{const l=Math.hypot(...a)||1;return a.map(x=>x/l)};
+  const N=F.map(([a,b,c])=>cr(sub(P(b),P(a)),sub(P(c),P(a)))),A=N.map(n=>Math.hypot(...n));
+  const he=new Map();F.forEach((f,i)=>{for(let j=0;j<3;j++)he.set(f[j]+'_'+f[(j+1)%3],i);});
+  const reg=F.map(()=>-1),out=[];
+  for(const s of F.map((_,i)=>i).sort((x,y)=>A[y]-A[x])){        // biggest triangles seed the planes
+    if(reg[s]>=0)continue;
+    const n=un(N[s]),d=dot(n,P(F[s][0])),q=[s],tris=[s];reg[s]=s;
+    while(q.length){const f=q.pop();for(let j=0;j<3;j++){
+      const g=he.get(F[f][(j+1)%3]+'_'+F[f][j]);
+      if(g==null||reg[g]>=0)continue;
+      if(dot(un(N[g]),n)>.99&&F[g].every(v=>Math.abs(dot(n,P(v))-d)<=tol)){reg[g]=s;q.push(g);tris.push(g);}
+    }}
+    const nx=new Map();                                          // boundary half-edges u->v
+    for(const f of tris)for(let j=0;j<3;j++){
+      const u=F[f][j],v=F[f][(j+1)%3],g=he.get(v+'_'+u);
+      if(g==null||reg[g]!==s){if(!nx.has(u))nx.set(u,[]);nx.get(u).push(v);}
+    }
+    const loops=[];
+    for(const [u0,l] of nx)while(l.length){
+      const lp=[u0];let c=l.pop(),g=0;
+      while(c!==u0&&g++<1e7){lp.push(c);const m=nx.get(c);if(!m||!m.length)break;c=m.pop();}
+      if(c===u0)loops.push(lp);
+    }
+    const area=lp=>{let a=[0,0,0];lp.forEach((v,i)=>{const c=cr(P(v),P(lp[(i+1)%lp.length]));a=[a[0]+c[0],a[1]+c[1],a[2]+c[2]];});return dot(a,n)/2;};
+    const outers=loops.filter(l=>area(l)>0).map(l=>({outer:l,holes:[]})),holes=loops.filter(l=>area(l)<=0);
+    if(!outers.length)continue;
+    const ax=[0,1,2].sort((a,b)=>Math.abs(n[b])-Math.abs(n[a]))[0],[i,j]=[0,1,2].filter(k=>k!==ax);
+    const pip=(pt,lp)=>{let c=false;for(let a=0,b=lp.length-1;a<lp.length;b=a++){
+      const X=P(lp[a]),Y=P(lp[b]);
+      if((X[j]>pt[j])!==(Y[j]>pt[j])&&pt[i]<(Y[i]-X[i])*(pt[j]-X[j])/(Y[j]-X[j])+X[i])c=!c;}return c;};
+    for(const h of holes)(outers.find(o=>pip(P(h[0]),o.outer))||outers[0]).holes.push(h);
+    for(const o of outers)out.push({n,tris,...o});
+  }
+  return{faces:out,tol};
+}
+
+function toSTEP({V,F},{faces,tol}){
+  const f=x=>(+x).toExponential(8).toUpperCase(),out=[],vp=new Map(),ed=new Map(),fl=[];let n=100;
+  const add=s=>{out.push('#'+(++n)+'='+s+';');return n;};
+  const P=i=>[V[i*3],V[i*3+1],V[i*3+2]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],
+    len=a=>Math.hypot(...a),un=a=>{const l=len(a)||1;return a.map(x=>x/l)},
+    pt=a=>add(`CARTESIAN_POINT('',(${a.map(f)}))`),dir=a=>add(`DIRECTION('',(${un(a).map(f)}))`);
+  const vert=i=>{if(!vp.has(i))vp.set(i,add(`VERTEX_POINT('',#${pt(P(i))})`));return vp.get(i);};
+  const edge=(a,b)=>{const k=a<b?a+'_'+b:b+'_'+a;
+    if(!ed.has(k)){const d=sub(P(b),P(a)),ln=add(`LINE('',#${pt(P(a))},#${add(`VECTOR('',#${dir(d)},${f(len(d))})`)})`);
+      ed.set(k,{a,id:add(`EDGE_CURVE('',#${vert(a)},#${vert(b)},#${ln},.T.)`)});}
+    return ed.get(k);};
+  const loop=lp=>add(`EDGE_LOOP('',(${lp.map((a,i)=>{const b=lp[(i+1)%lp.length],e=edge(a,b);
+    return '#'+add(`ORIENTED_EDGE('',*,*,#${e.id},${e.a===a?'.T.':'.F.'})`);})}))`);
+  for(const {n:nm,outer,holes} of faces){
+    const p0=P(outer[0]),e=sub(P(outer[1]),p0),r=e.map((x,i)=>x-nm[i]*(e[0]*nm[0]+e[1]*nm[1]+e[2]*nm[2])),
+      pl=add(`PLANE('',#${add(`AXIS2_PLACEMENT_3D('',#${pt(p0)},#${dir(nm)},#${dir(r)})`)})`),
+      bs=[add(`FACE_OUTER_BOUND('',#${loop(outer)},.T.)`),...holes.map(h=>add(`FACE_BOUND('',#${loop(h)},.T.)`))];
+    fl.push('#'+add(`ADVANCED_FACE('',(${bs.map(b=>'#'+b)}),#${pl},.T.)`));
+  }
+  const sh=add(`CLOSED_SHELL('',(${fl}))`),br=add(`MANIFOLD_SOLID_BREP('solid',#${sh})`);
+  return `ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('clean solid'),'2;1');
+FILE_NAME('clean.step','2026-01-01T00:00:00',(''),(''),'','','');
+FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));
+ENDSEC;
+DATA;
+#1=APPLICATION_CONTEXT('core data for automotive mechanical design processes');
+#2=APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#1);
+#3=MECHANICAL_CONTEXT('none',#1,'mechanical');
+#4=PRODUCT('part','part','',(#3));
+#5=PRODUCT_DEFINITION_FORMATION('','',#4);
+#6=PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design');
+#7=PRODUCT_DEFINITION('design','',#5,#6);
+#8=PRODUCT_DEFINITION_SHAPE('','',#7);
+#9=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));
+#10=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));
+#11=(NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT());
+#12=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(${f(Math.max(tol,1e-6))}),#9,'distance_accuracy_value','');
+#13=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#12)) GLOBAL_UNIT_ASSIGNED_CONTEXT((#9,#10,#11)) REPRESENTATION_CONTEXT('ctx','3d'));
+#14=SHAPE_DEFINITION_REPRESENTATION(#8,#15);
+#15=ADVANCED_BREP_SHAPE_REPRESENTATION('',(#16,#${br}),#13);
+#16=AXIS2_PLACEMENT_3D('',#17,#18,#19);
+#17=CARTESIAN_POINT('',(0.,0.,0.));
+#18=DIRECTION('',(0.,0.,1.));
+#19=DIRECTION('',(1.,0.,0.));
+${out.join('\n')}
+ENDSEC;
+END-ISO-10303-21;
+`;
+}
+
+// self-check: open index.html#test, see console. Cube (one face missing, one flipped), each tri split in 4 -> must give 6 faces.
+if(location.hash==='#test'){
+  const V=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+  const F=[[0,1,2],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[3,7,6],[3,6,2],[0,4,7],[0,7,3],[1,2,6]];
+  const m=(a,b)=>a.map((x,i)=>(x+b[i])/2),soup=[];
+  for(const [a,b,c] of F){const A=V[a],B=V[b],C=V[c],ab=m(A,B),bc=m(B,C),ca=m(C,A);
+    for(const t of [[A,ab,ca],[ab,B,bc],[ca,bc,C],[ab,bc,ca]])soup.push(...t.flat());}
+  const c=clean(Float32Array.from(soup)),r=regions(c);
+  console.assert(c.stats.watertight&&Math.abs(c.stats.volume-1)<1e-6&&r.faces.length===6,'selftest failed',c.stats,r.faces.length);
+  console.assert((toSTEP(c,r).match(/=ADVANCED_FACE\(/g)||[]).length===6,'step face count');
+  console.log('selftest',c.stats,'faces',r.faces.length);
+}
+
+// UI
+const $=id=>document.getElementById(id),el=$('v');
+const R=new THREE.WebGLRenderer({antialias:true,alpha:true});el.appendChild(R.domElement);
+const S=new THREE.Scene(),C=new THREE.PerspectiveCamera(45,1,.01,1e5),O=new THREE.OrbitControls(C,R.domElement);
+S.add(new THREE.HemisphereLight(0xffffff,0x444455,1.1),new THREE.DirectionalLight(0xffffff,.8));
+let mesh,c,r,name='model';
+const size=()=>{R.setSize(el.clientWidth,el.clientHeight);C.aspect=el.clientWidth/el.clientHeight;C.updateProjectionMatrix();};
+new ResizeObserver(size).observe(el);size();
+(function loop(){requestAnimationFrame(loop);O.update();R.render(S,C);})();
+const fmt=n=>n.toLocaleString(undefined,{maximumSignificantDigits:6});
+function mode(m){$('m0').classList.toggle('on',!m);$('m1').classList.toggle('on',!!m);
+  if(!mesh)return;mesh.material.vertexColors=!!m;mesh.material.color.set(m?0xffffff:0x6aa9ff);mesh.material.needsUpdate=true;}
+function paint(){
+  const col=new Float32Array(c.F.length*9).fill(.6),k=new THREE.Color();
+  r.faces.forEach((f,i)=>{k.setHSL((i*.618034)%1,.55,.58);for(const t of f.tris)for(let j=0;j<3;j++)col.set([k.r,k.g,k.b],t*9+j*3);});
+  mesh.geometry.setAttribute('color',new THREE.BufferAttribute(col,3));
+}
+function show(){
+  r=regions(c,+$('t').value);const s=c.stats,notes=[];
+  $('st').hidden=false;$('s1').textContent=fmt(s.trisOut);$('s2').textContent=fmt(r.faces.length);
+  $('s3').textContent=s.watertight?'Yes':'No';$('s3').style.color=s.watertight?'var(--ok)':'var(--warn)';$('s4').textContent=fmt(s.volume);
+  if(!s.watertight)notes.push('The mesh still has open edges after repair, so your CAD tool may import a surface instead of a solid.');
+  if(r.faces.length>s.trisOut*.5)notes.push('Most of this model is curved or freeform, so most faces stay as small flat facets. See "What it does not do" below.');
+  if(s.trisOut>400000)notes.push('Very large model. The STEP file will be big and slow to open.');
+  $('n').textContent=notes.join(' ');$('s').disabled=false;paint();mode($('m1').classList.contains('on')?1:0);
+}
+async function load(file){
+  if(!file)return;$('n').textContent='Working…';$('s').disabled=true;await new Promise(r=>setTimeout(r,30));
+  try{
+    const raw=parse(await file.arrayBuffer());
+    if(raw.length<9||raw.some(isNaN))throw Error('That does not look like a valid STL.');
+    c=clean(raw);name=file.name.replace(/\.stl$/i,'');
+    if(mesh){S.remove(mesh);mesh.geometry.dispose();}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(c.pos,3));g.computeVertexNormals();g.computeBoundingSphere();
+    mesh=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x6aa9ff,flatShading:true,side:THREE.DoubleSide}));S.add(mesh);
+    const b=g.boundingSphere;O.target.copy(b.center);C.position.copy(b.center).addScalar(b.radius*2);C.far=b.radius*100;C.updateProjectionMatrix();
+    show();
+  }catch(e){$('n').textContent='Could not convert: '+e.message;}
+}
+const dz=$('dz');dz.onclick=()=>$('f').click();$('f').onchange=e=>load(e.target.files[0]);
+dz.ondragover=e=>{e.preventDefault();dz.classList.add('on')};dz.ondragleave=()=>dz.classList.remove('on');
+dz.ondrop=e=>{e.preventDefault();dz.classList.remove('on');load(e.dataTransfer.files[0]);};
+$('t').onchange=()=>c&&show();$('m0').onclick=()=>mode(0);$('m1').onclick=()=>mode(1);
+$('s').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([toSTEP(c,r)]));a.download=name+'.step';a.click();};
+</script></html>
